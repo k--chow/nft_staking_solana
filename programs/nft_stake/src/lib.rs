@@ -2,19 +2,18 @@ use anchor_spl::token::Token;
 use anchor_lang::prelude::*;
 use anchor_spl::{
     token::{self, TokenAccount, Mint},
-};j
+};
 
 declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
 
 #[program]
 pub mod stake {
     use super::*;
-    sidpub fn initialize(
+    pub fn initialize(
         ctx: Context<Initialize>, 
         manager: Pubkey, 
         staker: Pubkey, 
-        token: Pubkey,
-        bump: u8
+        bump: u8,
     ) -> ProgramResult {
         let my_account = &mut ctx.accounts.my_account;
         my_account.manager = manager;
@@ -23,16 +22,13 @@ pub mod stake {
         Ok(())
     }
 
-    pub fn stake(ctx: Context<Initialize>) -> ProgramResult {
+    pub fn stake(ctx: Context<Stake>) -> ProgramResult {
         // only staker can call
-
         // only if not staked
-        let my_account = &mut ctx.accounts.my_account;
-        /*
-        if my_account.is_staked != 0:
-            return Err(StakingError::AlreadyStaked.into());
-        */
 
+        let my_account = &mut ctx.accounts.my_account;
+
+        // transfer NFT to contract
         token::transfer( // small transfer then big transfer
             CpiContext::new(
                 ctx.accounts.token_program.to_account_info(),
@@ -51,14 +47,13 @@ pub mod stake {
         Ok(())
     }
 
-    pub fn release(ctx: Context<Initialize>) -> ProgramResult {
+    pub fn release(ctx: Context<Release>) -> ProgramResult {
         // only manager can call
-
-        // only if isStaked
+        // only if isStaked is true
 
         let my_account = &mut ctx.accounts.my_account;
-
-        let seeds = &[my_account.key().as_ref(), b"authority".as_ref(), &[my_account.bump]];
+        let acc_key = my_account.key();
+        let seeds = &[acc_key.as_ref(), b"authority".as_ref(), &[my_account.bump]];
         
 
         // transfer NFT back
@@ -75,8 +70,6 @@ pub mod stake {
             1,
         )?;
 
-
-
         // close account
         Ok(())
     } // no end for now?
@@ -84,7 +77,7 @@ pub mod stake {
 
 #[derive(Accounts)]
 pub struct Initialize<'info> {
-    #[account(init, payer = user, space = 8 + 8)] // figure out space here. Is it needed?
+    #[account(init, payer = user, space = 8 + MyAccount::LEN)] // figure out space here. Is it needed?
     pub my_account: Account<'info, MyAccount>,
     #[account(mut)]
     pub user: Signer<'info>, // can get the signer here. because payer update state.
@@ -96,12 +89,11 @@ pub struct Stake<'info> {
     #[account(
         mut, 
         has_one = staker, // make sure Stake.staker is Stake.myaccount.staker
-        constraint = my_account.is_staked == 0, // make sure not already staked, add a msg
+        constraint = my_account.is_staked == 0 @ StakingError::AlreadyStaked, // make sure not already staked, add a msg
     )] 
     pub my_account: Account<'info, MyAccount>,
 
     #[account(
-        init,
         seeds = [my_account.key().as_ref(), b"authority"], // what this
         bump,
     )]
@@ -116,7 +108,7 @@ pub struct Stake<'info> {
         payer = staker
     )]
     pub contract_token_account: Account<'info, TokenAccount>,
-    pub stake_mint: Box<Account<'info, Mint>>,
+    pub stake_mint: Box<Account<'info, Mint>>, // the point is just so we can create the right token account for the contract
 
     pub staker: Signer<'info>, // enforces contraint that authority account 
     #[account(mut)]
@@ -138,7 +130,6 @@ pub struct Release<'info> {
     pub my_account: Account<'info, MyAccount>,
 
     #[account(
-        init,
         seeds = [my_account.key().as_ref(), b"authority"], // what this
         bump,
     )]
@@ -169,9 +160,14 @@ pub struct MyAccount {
     pub bump: u8,
 }
 
+impl MyAccount {
+    pub const LEN: usize = 32 + 32 + 8 + 1;
+}
+
 #[error]
 pub enum StakingError {
     #[msg("Already staked")]
     AlreadyStaked,
+}
 
     
