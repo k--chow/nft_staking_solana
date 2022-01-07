@@ -7,7 +7,7 @@ use anchor_spl::{
 declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
 
 #[program]
-pub mod stake {
+pub mod nft_stake {
     use super::*;
     pub fn initialize(
         ctx: Context<Initialize>, 
